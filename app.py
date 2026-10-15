@@ -232,3 +232,131 @@ if st.button('📋 Executar backtest demonstrativo'):
                            resultados.to_csv(index=False).encode('utf-8'),
                            file_name='backtest_ficticio.csv', mime='text/csv')
     st.warning('Os dados foram gerados aleatoriamente. Este teste NÃO valida uma estratégia lucrativa e não deve orientar operações reais.')
+
+st.divider()
+st.subheader('📁 Validação com histórico importado — M5')
+st.caption('Envie um CSV de candles M5 com colunas time, open, high, low, close. O horário deve representar o INÍCIO do candle, em UTC. Não use dados de outra corretora para validar OTC da Quotex.')
+
+
+def ler_csv_historico(arquivo):
+    bruto = pd.read_csv(arquivo)
+    bruto.columns = [str(c).strip().lower() for c in bruto.columns]
+    if 'time' not in bruto.columns:
+        for alternativa in ('timestamp', 'datetime', 'date'):
+            if alternativa in bruto.columns:
+                bruto = bruto.rename(columns={alternativa: 'time'})
+                break
+    necessarias = {'time', 'open', 'high', 'low', 'close'}
+    if not necessarias.issubset(bruto.columns):
+        raise ValueError('O CSV precisa das colunas: time, open, high, low, close.')
+    tempo_numerico = pd.to_numeric(bruto['time'], errors='coerce')
+    if tempo_numerico.notna().all():
+        unidade = 'ms' if tempo_numerico.median() > 1e11 else 's'
+        bruto['time'] = pd.to_datetime(tempo_numerico, unit=unidade, utc=True, errors='coerce')
+    else:
+        bruto['time'] = pd.to_datetime(bruto['time'], utc=True, errors='coerce')
+    for coluna in ('open', 'high', 'low', 'close'):
+        bruto[coluna] = pd.to_numeric(bruto[coluna], errors='coerce')
+    bruto = bruto.dropna(subset=['time', 'open', 'high', 'low', 'close'])
+    bruto = bruto.sort_values('time').drop_duplicates('time', keep='last').reset_index(drop=True)
+    if len(bruto) < 350:
+        raise ValueError('Histórico curto: envie ao menos 350 candles M5 consecutivos.')
+    if ((bruto['time'].dt.minute % 5 != 0) | (bruto['time'].dt.second != 0)).any():
+        raise ValueError('Os horários não estão alinhados ao início de candles M5 (00, 05, 10...).')
+    if ((bruto['high'] < bruto[['open', 'close', 'low']].max(axis=1)) | (bruto['low'] > bruto[['open', 'close', 'high']].min(axis=1))).any():
+        raise ValueError('Há candles com high/low incompatíveis com os preços OHLC.')
+    return bruto
+
+
+def montar_periodo(df, minutos):
+    tabela = df.set_index('time').resample(f'{minutos}min', origin='epoch', label='left', closed='left').agg(
+        open=('open', 'first'), high=('high', 'max'), low=('low', 'min'), close=('close', 'last'),
+        quantidade=('close', 'count'))
+    # Só blocos completos, sem lacunas; um bloco H1 requer 12 candles M5.
+    tabela = tabela[tabela['quantidade'] == minutos // 5].dropna().copy()
+    tabela['fechamento_utc'] = tabela.index + pd.Timedelta(minutes=minutos)
+    return indicadores(tabela.reset_index())
+
+
+def direcao_linha(linha):
+    if pd.isna(linha['mm9']) or pd.isna(linha['mm21']) or pd.isna(linha['rsi']):
+        return 'INDEFINIDA'
+    if linha['mm9'] > linha['mm21'] and linha['close'] > linha['mm9'] and 50 < linha['rsi'] < 70:
+        return 'ALTA'
+    if linha['mm9'] < linha['mm21'] and linha['close'] < linha['mm9'] and 30 < linha['rsi'] < 50:
+        return 'BAIXA'
+    return 'INDEFINIDA'
+
+
+def backtest_historico(df, payout_pct, aposta):
+    m5 = indicadores(df.copy())
+    m15 = montar_periodo(df, 15)
+    h1 = montar_periodo(df, 60)
+    if len(m15) < 25 or len(h1) < 25:
+        raise ValueError('Não há histórico suficiente de H1 e M15 completos.')
+    # Calcula todos os indicadores exclusivamente com candles anteriores ou atuais.
+    # As séries H1/M15 são unidas pela hora de FECHAMENTO, nunca pela abertura.
+    for nome, tabela in [('m15', m15), ('h1', h1)]:
+        direcoes = tabela.apply(direcao_linha, axis=1)
+        aux = pd.DataFrame({'momento': tabela['fechamento_utc'], nome: direcoes})
+        m5['fim_m5'] = m5['time'] + pd.Timedelta(minutes=5)
+        m5 = pd.merge_asof(m5.sort_values('fim_m5'), aux.sort_values('momento'),
+                            left_on='fim_m5', right_on='momento', direction='backward')
+        m5 = m5.drop(columns=['momento'])
+    m5['m5'] = m5.apply(direcao_linha, axis=1)
+    registros = []
+    for i in range(1, len(m5) - 1):
+        atual = m5.iloc[i]
+        proximo = m5.iloc[i + 1]
+        anterior = m5.iloc[i - 1]
+        # Não criar trades através de lacunas de feed.
+        if (atual['time'] - anterior['time'] != pd.Timedelta(minutes=5)
+                or proximo['time'] - atual['time'] != pd.Timedelta(minutes=5)):
+            continue
+        d = atual['m5']
+        if d not in ('ALTA', 'BAIXA') or d != atual['m15'] or d != atual['h1']:
+            continue
+        entrada = float(atual['close'])
+        saida = float(proximo['close'])
+        if saida == entrada:
+            resultado, lucro = 'EMPATE', 0.0
+        elif (saida > entrada) == (d == 'ALTA'):
+            resultado, lucro = 'ACERTO', aposta * payout_pct / 100
+        else:
+            resultado, lucro = 'ERRO', -aposta
+        registros.append({'Momento UTC': atual['fim_m5'], 'Direção': 'CALL' if d == 'ALTA' else 'PUT',
+                          'Entrada': entrada, 'Saída': saida, 'Resultado': resultado, 'Lucro (R$)': lucro})
+    return pd.DataFrame(registros)
+
+
+historico = st.file_uploader('Importar CSV de candles M5', type=['csv'], key='historico_m5')
+st.caption('A validação exige dados históricos genuínos e verificáveis. A importação não comprova que os preços correspondem à Quotex.')
+if historico is not None:
+    try:
+        dados_historicos = ler_csv_historico(historico)
+        st.write(f'Candles importados: **{len(dados_historicos)}**')
+        st.write(f"Período UTC: {dados_historicos['time'].iloc[0]} até {dados_historicos['time'].iloc[-1]}")
+        st.info('Hipótese simplificada: decisão no fechamento do M5 e expiração no fechamento do M5 seguinte. A execução real pode ter latência, diferença de cotação e empate com tratamento diferente.')
+        if st.button('🧪 Validar histórico importado'):
+            resultado_real = backtest_historico(dados_historicos, payout, valor)
+            if resultado_real.empty:
+                st.warning('Nenhuma operação passou pelos filtros neste histórico.')
+            else:
+                # Separação cronológica, sem escolher parâmetros após observar a validação.
+                corte = dados_historicos['time'].iloc[int(len(dados_historicos) * 0.7)]
+                resultado_real['Amostra'] = np.where(resultado_real['Momento UTC'] < corte, 'Desenvolvimento (70%)', 'Validação (30%)')
+                resumo = []
+                for nome, parte in resultado_real.groupby('Amostra'):
+                    validas = parte[parte['Resultado'] != 'EMPATE']
+                    n = len(validas)
+                    acertos = int((validas['Resultado'] == 'ACERTO').sum())
+                    resumo.append({'Amostra': nome, 'Operações': n, 'Acertos': acertos,
+                                   'Assertividade (%)': round(100 * acertos / n, 2) if n else None,
+                                   'Saldo hipotético (R$)': round(parte['Lucro (R$)'].sum(), 2)})
+                st.dataframe(pd.DataFrame(resumo), hide_index=True, use_container_width=True)
+                st.dataframe(resultado_real.tail(30), hide_index=True, use_container_width=True)
+                st.download_button('⬇️ Baixar backtest do CSV', resultado_real.to_csv(index=False).encode('utf-8'),
+                                   file_name='backtest_historico.csv', mime='text/csv')
+                st.warning('Resultado histórico não garante desempenho futuro. Sem dados fora da amostra, sem checagem de execução real e sem payout histórico, isto ainda é uma avaliação preliminar.')
+    except Exception as erro:
+        st.error(f'Não foi possível validar o arquivo: {erro}')
