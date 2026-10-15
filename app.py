@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 st.set_page_config(page_title='Analisador Quotex', page_icon='📊', layout='wide')
 st.title('📊 Analisador Quotex')
-st.caption('Análise sob demanda • Protótipo educacional • Versão 6.1')
+st.caption('Análise sob demanda • Protótipo educacional • Versão 6.2')
 BASE = 'https://otcharts.com'
 PERIODOS = {'M5': 300, 'M15': 900, 'H1': 3600}
 
@@ -51,16 +51,30 @@ def preparar(velas, segundos, agora_utc=None):
     if df[['open', 'high', 'low', 'close']].isna().any().any():
         raise ValueError('Valores OHLC inválidos. Análise bloqueada.')
     df = df.sort_values('inicio_utc').drop_duplicates('inicio_utc', keep='last').copy()
-    epoch = df['inicio_utc'].astype('int64') // 10**9
-    if (epoch % segundos != 0).any():
-        amostras = df['inicio_utc'].tail(5).dt.strftime('%Y-%m-%d %H:%M:%S UTC').tolist()
-        residuos = sorted(set((epoch % segundos).tail(20).astype(int).tolist()))
-        st.error(f'Os timestamps de {segundos // 60} minutos não coincidem com a grade UTC esperada. Análise bloqueada para evitar sinais incorretos.')
+    # A OTCharts pode registrar a vela 1 segundo depois da fronteira UTC.
+    # Corrigimos apenas deslocamentos muito pequenos (até 2 segundos),
+    # mantendo um bloqueio para horários realmente incompatíveis.
+    epoch_ns = df['inicio_utc'].astype('int64')
+    periodo_ns = segundos * 1_000_000_000
+    resto_ns = epoch_ns % periodo_ns
+    distancia_ns = np.minimum(resto_ns, periodo_ns - resto_ns)
+    tolerancia_ns = 2 * 1_000_000_000
+    if (distancia_ns > tolerancia_ns).any():
+        amostras = df['inicio_utc'].tail(5).dt.strftime('%Y-%m-%d %H:%M:%S.%f UTC').tolist()
+        residuos = sorted(set((resto_ns // 1_000_000_000).tail(20).astype(int).tolist()))
+        st.error(f'Horários incompatíveis com candles de {segundos // 60} minutos. Análise bloqueada.')
         st.write('Campo de horário recebido:', coluna_tempo)
-        st.write('Últimos horários recebidos (interpretados em UTC):', amostras)
-        st.write('Deslocamentos em segundos dentro do período:', residuos)
-        st.caption('Esses dados de diagnóstico não contêm sua chave de API. Envie um print desta mensagem para identificarmos o formato correto da OTCharts.')
-        raise ValueError('Formato temporal da OTCharts ainda não confirmado. Não houve análise.')
+        st.write('Últimos horários recebidos:', amostras)
+        st.write('Deslocamentos em segundos:', residuos)
+        raise ValueError('Deslocamento temporal maior que a tolerância de 2 segundos.')
+    # Arredondamento à grade mais próxima somente após validar a tolerância.
+    grade_ns = ((epoch_ns + periodo_ns // 2) // periodo_ns) * periodo_ns
+    df['inicio_utc'] = pd.to_datetime(grade_ns, utc=True)
+    if df['inicio_utc'].duplicated().any():
+        raise ValueError('Timestamps duplicados após normalização. Análise bloqueada.')
+    deslocamento_max = float(distancia_ns.max() / 1_000_000_000)
+    if deslocamento_max > 0:
+        st.caption(f'Horários da API ajustados à grade UTC (deslocamento máximo: {deslocamento_max:.3f} s).')
     if ((df['high'] < df[['open', 'close', 'low']].max(axis=1)) |
             (df['low'] > df[['open', 'close', 'high']].min(axis=1))).any():
         raise ValueError('OHLC inconsistente. Análise bloqueada.')
