@@ -161,3 +161,74 @@ if st.button('🔎 Analisar M5 + M15 + H1', type='primary'):
         st.code(erro.response.text[:500])
     except Exception as erro:
         st.error(f'Erro: {erro}')
+
+st.divider()
+st.subheader('🧪 Laboratório de assertividade — M5')
+st.caption('Backtest ilustrativo. Somente dados fictícios; não mede desempenho real da Quotex.')
+
+payout = st.slider('Payout hipotético (%)', min_value=60, max_value=95, value=91, step=1)
+valor = st.number_input('Valor hipotético por operação (R$)', min_value=1.0, max_value=10000.0, value=10.0, step=1.0)
+
+
+def backtest_simulado(payout_pct, aposta):
+    """Decisão no fechamento de M5; resultado no fechamento do M5 seguinte.
+    H1/M15 somente de blocos completos, sem antecipar candles futuros.
+    """
+    base = demonstracao().reset_index(drop=True)
+    m5 = indicadores(base)
+    m15 = indicadores(agrupar(base, 3))
+    h1 = indicadores(agrupar(base, 12))
+    registros = []
+    # i é o candle M5 já fechado no instante da decisão.
+    # Um bloco de 3 termina em 2,5,8...; de 12 em 11,23,35...
+    for i in range(300, len(base) - 1):
+        j15 = (i + 1) // 3 - 1
+        j1h = (i + 1) // 12 - 1
+        if j15 < 24 or j1h < 24:
+            continue
+        d5 = direcao(m5.iloc[:i + 1])
+        d15 = direcao(m15.iloc[:j15 + 1])
+        d1h = direcao(h1.iloc[:j1h + 1])
+        if d5 not in ('ALTA', 'BAIXA') or d5 != d15 or d5 != d1h:
+            continue
+        entrada = float(base.iloc[i]['close'])
+        saida = float(base.iloc[i + 1]['close'])
+        if entrada == saida:
+            resultado = 'EMPATE'
+            lucro = 0.0
+        elif (saida > entrada) == (d5 == 'ALTA'):
+            resultado = 'ACERTO'
+            lucro = aposta * payout_pct / 100
+        else:
+            resultado = 'ERRO'
+            lucro = -aposta
+        registros.append({'Candle': i, 'Direção': 'CALL' if d5 == 'ALTA' else 'PUT',
+                          'Entrada': entrada, 'Saída': saida,
+                          'Resultado': resultado, 'Lucro (R$)': lucro})
+    return pd.DataFrame(registros)
+
+
+if st.button('📋 Executar backtest demonstrativo'):
+    resultados = backtest_simulado(payout, valor)
+    if resultados.empty:
+        st.info('Nenhuma operação passou pelos filtros neste conjunto fictício. Isso também é um resultado válido.')
+    else:
+        validos = resultados[resultados['Resultado'] != 'EMPATE']
+        n = len(validos)
+        acertos = int((validos['Resultado'] == 'ACERTO').sum())
+        erros = int((validos['Resultado'] == 'ERRO').sum())
+        empates = len(resultados) - n
+        taxa = 100 * acertos / n if n else 0.0
+        lucro = resultados['Lucro (R$)'].sum()
+        a, b, c = st.columns(3)
+        a.metric('Operações válidas', n)
+        b.metric('Acertos / Erros', f'{acertos} / {erros}')
+        c.metric('Acerto simulado', f'{taxa:.1f}%' if n else 'N/D')
+        st.metric('Saldo hipotético', f'R$ {lucro:.2f}')
+        if empates:
+            st.caption(f'{empates} empates excluídos da taxa de acerto (lucro zero).')
+        st.dataframe(resultados, use_container_width=True, hide_index=True)
+        st.download_button('⬇️ Exportar testes (CSV)',
+                           resultados.to_csv(index=False).encode('utf-8'),
+                           file_name='backtest_ficticio.csv', mime='text/csv')
+    st.warning('Os dados foram gerados aleatoriamente. Este teste NÃO valida uma estratégia lucrativa e não deve orientar operações reais.')
