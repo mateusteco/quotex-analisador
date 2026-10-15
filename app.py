@@ -237,6 +237,19 @@ st.divider()
 st.subheader('📁 Validação com histórico importado — M5')
 st.caption('Envie um CSV de candles M5 com colunas time, open, high, low, close. O horário deve representar o INÍCIO do candle, em UTC. Não use dados de outra corretora para validar OTC da Quotex.')
 
+# CSV de teste para verificar a importação sem depender de serviços externos.
+exemplo = demonstracao().copy()
+exemplo.insert(0, 'time', pd.date_range('2026-10-01 00:00:00', periods=len(exemplo), freq='5min', tz='UTC').strftime('%Y-%m-%dT%H:%M:%SZ'))
+st.download_button(
+    '⬇️ Baixar CSV fictício para testar a importação',
+    data=exemplo.to_csv(index=False).encode('utf-8'),
+    file_name='exemplo_ficticio_m5.csv',
+    mime='text/csv',
+    help='Arquivo de teste gerado artificialmente. Não contém cotações reais.'
+)
+st.warning('O CSV de exemplo é 100% fictício. Use-o somente para testar o funcionamento do aplicativo.')
+
+
 
 def ler_csv_historico(arquivo):
     bruto = pd.read_csv(arquivo)
@@ -336,6 +349,14 @@ if historico is not None:
         dados_historicos = ler_csv_historico(historico)
         st.write(f'Candles importados: **{len(dados_historicos)}**')
         st.write(f"Período UTC: {dados_historicos['time'].iloc[0]} até {dados_historicos['time'].iloc[-1]}")
+        intervalos = dados_historicos['time'].diff().dropna()
+        lacunas = intervalos[intervalos > pd.Timedelta(minutes=5)]
+        st.write(f'Intervalos com lacunas: **{len(lacunas)}**')
+        if len(lacunas):
+            st.warning('Foram encontradas lacunas no histórico. Operações que atravessam essas lacunas serão ignoradas.')
+        else:
+            st.success('Os horários estão consecutivos, com intervalos de 5 minutos.')
+        st.caption('A verificação de horários e OHLC não autentica a origem dos preços.')
         st.info('Hipótese simplificada: decisão no fechamento do M5 e expiração no fechamento do M5 seguinte. A execução real pode ter latência, diferença de cotação e empate com tratamento diferente.')
         if st.button('🧪 Validar histórico importado'):
             resultado_real = backtest_historico(dados_historicos, payout, valor)
