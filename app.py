@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 st.set_page_config(page_title='Analisador Quotex', page_icon='📊', layout='wide')
 st.title('📊 Analisador Quotex')
-st.caption('Análise sob demanda • Protótipo educacional • Versão 6.0')
+st.caption('Análise sob demanda • Protótipo educacional • Versão 6.1')
 BASE = 'https://otcharts.com'
 PERIODOS = {'M5': 300, 'M15': 900, 'H1': 3600}
 
@@ -53,7 +53,14 @@ def preparar(velas, segundos, agora_utc=None):
     df = df.sort_values('inicio_utc').drop_duplicates('inicio_utc', keep='last').copy()
     epoch = df['inicio_utc'].astype('int64') // 10**9
     if (epoch % segundos != 0).any():
-        raise ValueError('Horários desalinhados com o timeframe. Verifique se o timestamp representa a abertura em UTC.')
+        amostras = df['inicio_utc'].tail(5).dt.strftime('%Y-%m-%d %H:%M:%S UTC').tolist()
+        residuos = sorted(set((epoch % segundos).tail(20).astype(int).tolist()))
+        st.error(f'Os timestamps de {segundos // 60} minutos não coincidem com a grade UTC esperada. Análise bloqueada para evitar sinais incorretos.')
+        st.write('Campo de horário recebido:', coluna_tempo)
+        st.write('Últimos horários recebidos (interpretados em UTC):', amostras)
+        st.write('Deslocamentos em segundos dentro do período:', residuos)
+        st.caption('Esses dados de diagnóstico não contêm sua chave de API. Envie um print desta mensagem para identificarmos o formato correto da OTCharts.')
+        raise ValueError('Formato temporal da OTCharts ainda não confirmado. Não houve análise.')
     if ((df['high'] < df[['open', 'close', 'low']].max(axis=1)) |
             (df['low'] > df[['open', 'close', 'high']].min(axis=1))).any():
         raise ValueError('OHLC inconsistente. Análise bloqueada.')
@@ -159,6 +166,9 @@ if st.button('🔎 Analisar M5 + M15 + H1', type='primary'):
                 fim = quadros[nome]['fim_utc'].iloc[-1]
                 atraso = (pd.Timestamp(agora) - fim).total_seconds()
                 st.caption(f'{nome}: último fechamento {fim.strftime("%d/%m/%Y %H:%M:%S UTC")} · idade {atraso/60:.1f} min')
+                if atraso < -10:
+                    st.error(f'Dados {nome} apresentam fechamento no futuro. Análise bloqueada.')
+                    st.stop()
                 if atraso > tf + 120:
                     st.error(f'Dados {nome} atrasados. Análise bloqueada.')
                     st.stop()
