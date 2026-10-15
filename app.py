@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 st.set_page_config(page_title='Analisador Quotex', page_icon='📊', layout='wide')
 st.title('📊 Analisador Quotex')
-st.caption('Análise sob demanda • Protótipo educacional • Versão 6.3')
+st.caption('Análise sob demanda • Protótipo educacional • Versão 6.4')
 BASE = 'https://otcharts.com'
 PERIODOS = {'M5': 300, 'M15': 900, 'H1': 3600}
 
@@ -54,22 +54,22 @@ def preparar(velas, segundos, agora_utc=None):
     # A OTCharts pode registrar a vela 1 segundo depois da fronteira UTC.
     # Corrigimos apenas deslocamentos muito pequenos (até 2 segundos),
     # mantendo um bloqueio para horários realmente incompatíveis.
-    epoch_ns = df['inicio_utc'].astype('int64')
-    periodo_ns = segundos * 1_000_000_000
-    resto_ns = epoch_ns % periodo_ns
-    distancia_ns = np.minimum(resto_ns, periodo_ns - resto_ns)
-    tolerancia_ns = 2 * 1_000_000_000
-    if (distancia_ns > tolerancia_ns).any():
-        amostras = df['inicio_utc'].tail(5).dt.strftime('%Y-%m-%d %H:%M:%S.%f UTC').tolist()
-        residuos = sorted(set((resto_ns // 1_000_000_000).tail(20).astype(int).tolist()))
+    # Operações nativas com datetime, sem converter para inteiros Unix.
+    # Pandas pode armazenar timestamps em microssegundos ou nanossegundos,
+    # dependendo da versão; astype(int64) causava datas em 1970.
+    original = df['inicio_utc'].copy()
+    grade = original.dt.round(f'{segundos}s')
+    diferencas = (original - grade).abs()
+    tolerancia = pd.Timedelta(seconds=2)
+    if (diferencas > tolerancia).any():
         st.error(f'Horários incompatíveis com candles de {segundos // 60} minutos. Análise bloqueada.')
         st.write('Campo de horário recebido:', coluna_tempo)
-        st.write('Últimos horários recebidos:', amostras)
-        st.write('Deslocamentos em segundos:', residuos)
+        st.write('Últimos horários recebidos:', original.tail(5).dt.strftime('%Y-%m-%d %H:%M:%S.%f UTC').tolist())
+        st.write('Deslocamentos em segundos:', diferencas.tail(5).dt.total_seconds().tolist())
         raise ValueError('Deslocamento temporal maior que a tolerância de 2 segundos.')
-    # Arredondamento à grade mais próxima somente após validar a tolerância.
-    grade_ns = ((epoch_ns + periodo_ns // 2) // periodo_ns) * periodo_ns
-    df['inicio_utc'] = pd.to_datetime(grade_ns, utc=True)
+    df['inicio_utc'] = grade
+    if (df['inicio_utc'].dt.year < 2020).any():
+        raise ValueError('Datas inesperadamente antigas após normalização. Análise bloqueada.')
     # Verifica duplicidades depois do ajuste temporal. Não descarta candles
     # com preços diferentes: isso poderia alterar os indicadores silenciosamente.
     duplicados = df[df['inicio_utc'].duplicated(keep=False)].copy()
@@ -89,7 +89,7 @@ def preparar(velas, segundos, agora_utc=None):
             raise ValueError(f'{len(duplicados)} registros envolvidos em duplicidades conflitantes. Não foram descartados.')
         st.caption(f'{len(duplicados)} registros com horários repetidos e OHLC idênticos; cópias exatas ignoradas.')
         df = df.drop_duplicates(subset='inicio_utc', keep='last').copy()
-    deslocamento_max = float(distancia_ns.max() / 1_000_000_000)
+    deslocamento_max = float(diferencas.dt.total_seconds().max())
     if deslocamento_max > 0:
         st.caption(f'Horários da API ajustados à grade UTC (deslocamento máximo: {deslocamento_max:.3f} s).')
     if ((df['high'] < df[['open', 'close', 'low']].max(axis=1)) |
@@ -403,4 +403,3 @@ if historico is not None:
                 st.warning('Resultados históricos não garantem desempenho futuro. Ainda é uma avaliação preliminar.')
     except Exception as erro:
         st.error(f'Não foi possível validar o arquivo: {erro}')
-
