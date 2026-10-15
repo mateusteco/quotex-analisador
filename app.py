@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 st.set_page_config(page_title='Analisador Quotex', page_icon='📊', layout='wide')
 st.title('📊 Analisador Quotex')
-st.caption('Análise sob demanda • Protótipo educacional • Versão 6.2')
+st.caption('Análise sob demanda • Protótipo educacional • Versão 6.3')
 BASE = 'https://otcharts.com'
 PERIODOS = {'M5': 300, 'M15': 900, 'H1': 3600}
 
@@ -70,8 +70,25 @@ def preparar(velas, segundos, agora_utc=None):
     # Arredondamento à grade mais próxima somente após validar a tolerância.
     grade_ns = ((epoch_ns + periodo_ns // 2) // periodo_ns) * periodo_ns
     df['inicio_utc'] = pd.to_datetime(grade_ns, utc=True)
-    if df['inicio_utc'].duplicated().any():
-        raise ValueError('Timestamps duplicados após normalização. Análise bloqueada.')
+    # Verifica duplicidades depois do ajuste temporal. Não descarta candles
+    # com preços diferentes: isso poderia alterar os indicadores silenciosamente.
+    duplicados = df[df['inicio_utc'].duplicated(keep=False)].copy()
+    if not duplicados.empty:
+        conflito = False
+        for _, grupo in duplicados.groupby('inicio_utc'):
+            # Comparação exata: não misturar preços distintos do mesmo período.
+            if len(grupo[['open', 'high', 'low', 'close']].drop_duplicates()) > 1:
+                conflito = True
+                break
+        if conflito:
+            st.error('A API retornou candles com preços diferentes para o mesmo intervalo. Análise bloqueada.')
+            st.caption('Diagnóstico de duplicidades (horários UTC e preços, sem dados de autenticação):')
+            amostra = duplicados[['inicio_utc', 'open', 'high', 'low', 'close']].tail(12).copy()
+            amostra['inicio_utc'] = amostra['inicio_utc'].dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+            st.dataframe(amostra, use_container_width=True, hide_index=True)
+            raise ValueError(f'{len(duplicados)} registros envolvidos em duplicidades conflitantes. Não foram descartados.')
+        st.caption(f'{len(duplicados)} registros com horários repetidos e OHLC idênticos; cópias exatas ignoradas.')
+        df = df.drop_duplicates(subset='inicio_utc', keep='last').copy()
     deslocamento_max = float(distancia_ns.max() / 1_000_000_000)
     if deslocamento_max > 0:
         st.caption(f'Horários da API ajustados à grade UTC (deslocamento máximo: {deslocamento_max:.3f} s).')
@@ -386,3 +403,4 @@ if historico is not None:
                 st.warning('Resultados históricos não garantem desempenho futuro. Ainda é uma avaliação preliminar.')
     except Exception as erro:
         st.error(f'Não foi possível validar o arquivo: {erro}')
+
