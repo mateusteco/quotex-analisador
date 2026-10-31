@@ -1,10 +1,10 @@
 """Fluxo M1: ticks -> vela fechada -> indicadores -> sinais e resultados simulados.
 Nenhuma ordem real. Telegram de sinais somente quando habilitado explicitamente.
-Resultados são armazenados em memória, sem envio automático.
+Resultados ficam em memória; Telegram somente se explicitamente habilitado.
 """
 from stream_m1 import M1Builder
 from indicadores_m1 import IndicadoresM1
-from alertas_simulacao import formatar_alerta, enviar_alerta
+from alertas_simulacao import formatar_alerta, enviar_alerta, enviar_resultado
 from apuracao_simulada_m1 import ApuradorM1
 
 class FluxoM1:
@@ -21,7 +21,9 @@ class FluxoM1:
         if candle is None:
             return None
         # Apura a vela posterior antes de avaliar um novo sinal.
-        self.apurador.processar_candle(candle)
+        resultado = self.apurador.processar_candle(candle)
+        if resultado is not None and self.enviar_telegram:
+            enviar_resultado(resultado, sessao=self.sessao)
         leitura = self.indicadores.processar(candle)
         if leitura is None:
             return None
