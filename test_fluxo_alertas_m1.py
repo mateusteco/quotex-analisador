@@ -21,7 +21,7 @@ class TestFluxo(unittest.TestCase):
             if resultado:
                 mensagens.append(resultado)
         self.assertGreater(len(mensagens), 0)
-        self.assertTrue(all("SIMULACAO" in m for m in mensagens))
+        self.assertTrue(all("SIMULAÇÃO" in m for m in mensagens))
         self.assertTrue(all(("CALL" in m or "PUT" in m) for m in mensagens))
 
     def test_telegram_desligado_por_padrao(self):
