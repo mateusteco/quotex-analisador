@@ -49,10 +49,12 @@ def main():
             if modo_telegram:
                 # Neste modo, so encerrar apos sinal + vela seguinte apurada,
                 # ou pelo limite de 30 minutos. Pode nao surgir sinal.
-                if resultados_iniciais >= 1 and fechados >= 22:
+                if resultados_iniciais >= 1 and fechados >= 22 and fluxo.apurador.pendente is None:
                     break
             elif fechados >= 22 and ticks >= 10:
                 break
+    if fluxo.apurador.pendente is not None:
+        print("ATENCAO: sinal pendente sem vela posterior completa; resultado nao apurado.")
     print(f"Ticks: {ticks}; candles M1 fechados: {fechados}; leituras completas: {leituras}")
     print("Observacao: indicadores precisam de 22 velas fechadas para aquecimento.")
     if ticks < 10 or fechados < 22 or leituras < 1:
