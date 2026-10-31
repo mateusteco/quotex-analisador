@@ -1,0 +1,25 @@
+name: Teste ponta a ponta OTCharts Telegram M1
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: otcharts-stream-m1
+  cancel-in-progress: false
+jobs:
+  teste:
+    runs-on: ubuntu-latest
+    timeout-minutes: 32
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Simular sinais e resultados observados
+        env:
+          OTCHARTS_API_KEY: ${{ secrets.OTCHARTS_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ENVIAR_TELEGRAM_SIMULACAO: '1'
+        run: python teste_integrado_m1.py
