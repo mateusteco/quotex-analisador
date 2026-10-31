@@ -12,6 +12,7 @@ def main():
     indicadores = IndicadoresM1()
     ticks = 0
     fechados = 0
+    leituras = 0
     inicio = time.monotonic()
     with requests.get(
         "https://otcharts.com/v1/stream",
@@ -38,10 +39,12 @@ def main():
                 print("M1 fechado:", candle)
                 leitura = indicadores.processar(candle)
                 if leitura is not None:
+                    leituras += 1
                     print("Indicadores da vela fechada:", leitura)
             if fechados >= 1 and ticks >= 10:
                 break
-    print(f"Ticks: {ticks}; candles M1 fechados: {fechados}")
+    print(f"Ticks: {ticks}; candles M1 fechados: {fechados}; leituras completas: {leituras}")
+    print("Observacao: indicadores precisam de 22 velas fechadas para aquecimento.")
     if ticks < 10 or fechados < 1:
         raise RuntimeError("Teste inconclusivo: faltaram ticks ou virada de minuto")
     print("Streaming integrado ao M1: OK; nenhuma operacao enviada")
