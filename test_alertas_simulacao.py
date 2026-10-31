@@ -16,7 +16,7 @@ class TestAlertas(unittest.TestCase):
     def test_texto_marca_simulacao(self):
         mensagem = formatar_alerta(self.leitura)
         self.assertIn("TESTE", mensagem)
-        self.assertIn("SIMULACAO", mensagem)
+        self.assertIn("SIMULAÇÃO", mensagem)
         self.assertIn("CALL", mensagem)
 
     @patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "teste", "TELEGRAM_CHAT_ID": "123"})
