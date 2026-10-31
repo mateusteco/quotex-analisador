@@ -1,0 +1,20 @@
+name: Testar indicadores M1
+on:
+  push:
+    branches: [desenvolvimento-streaming-m1]
+    paths:
+      - "indicadores_m1.py"
+      - "stream_m1.py"
+      - "test_indicadores_m1.py"
+      - ".github/workflows/testar-indicadores-m1.yml"
+  workflow_dispatch:
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Executar testes de indicadores
+        run: python -m unittest -v test_indicadores_m1.py
