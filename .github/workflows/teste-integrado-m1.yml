@@ -1,6 +1,13 @@
 name: Teste integrado streaming M1
 on:
   workflow_dispatch:
+  push:
+    branches: [desenvolvimento-streaming-m1]
+    paths:
+      - 'teste_integrado_m1.py'
+      - 'indicadores_m1.py'
+      - 'stream_m1.py'
+      - '.github/workflows/teste-integrado-m1.yml'
 permissions:
   contents: read
 jobs:
