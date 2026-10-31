@@ -4,10 +4,12 @@ import os
 import time
 import requests
 from stream_m1 import M1Builder
+from indicadores_m1 import IndicadoresM1
 
 def main():
     key = os.environ["OTCHARTS_API_KEY"]
     builder = M1Builder()
+    indicadores = IndicadoresM1()
     ticks = 0
     fechados = 0
     inicio = time.monotonic()
@@ -34,6 +36,9 @@ def main():
             if candle:
                 fechados += 1
                 print("M1 fechado:", candle)
+                leitura = indicadores.processar(candle)
+                if leitura is not None:
+                    print("Indicadores da vela fechada:", leitura)
             if fechados >= 1 and ticks >= 10:
                 break
     print(f"Ticks: {ticks}; candles M1 fechados: {fechados}")
