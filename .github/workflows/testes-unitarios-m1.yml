@@ -1,0 +1,22 @@
+name: Testes unitarios M1
+on:
+  workflow_dispatch:
+  push:
+    branches: [desenvolvimento-streaming-m1]
+    paths:
+      - test_stream_m1.py
+      - stream_m1.py
+      - .github/workflows/testes-unitarios-m1.yml
+permissions:
+  contents: read
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Executar testes unitarios
+        run: python -m unittest -v test_stream_m1.py
