@@ -63,3 +63,19 @@ def enviar_alerta(leitura, simbolo="BRLUSD_otc", *, sessao=None):
     if not resposta.json().get("ok"):
         raise RuntimeError("Telegram não confirmou o envio")
     return True
+
+def enviar_resultado(registro, *, sessao=None):
+    """Envia apenas resultados de candles efetivamente apurados."""
+    mensagem = registro["mensagem"]
+    token = os.environ["TELEGRAM_BOT_TOKEN"]
+    chat_id = os.environ["TELEGRAM_CHAT_ID"]
+    cliente = sessao if sessao is not None else requests
+    resposta = cliente.post(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        json={"chat_id": chat_id, "text": mensagem},
+        timeout=15,
+    )
+    resposta.raise_for_status()
+    if not resposta.json().get("ok"):
+        raise RuntimeError("Telegram não confirmou o resultado")
+    return True
