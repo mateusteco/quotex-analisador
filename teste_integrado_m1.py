@@ -13,6 +13,8 @@ def main():
     fechados = 0
     leituras = 0
     inicio = time.monotonic()
+    modo_telegram = os.getenv('ENVIAR_TELEGRAM_SIMULACAO') == '1'
+    resultados_iniciais = 0
     with requests.get(
         "https://otcharts.com/v1/stream",
         headers={"Authorization": f"Bearer {key}", "Accept": "text/event-stream"},
@@ -41,12 +43,24 @@ def main():
                     leituras += 1
             if mensagem:
                 print("Alerta teorico preparado:", mensagem)
-            if fechados >= 22 and ticks >= 10:
+            if len(fluxo.apurador.resultados) > resultados_iniciais:
+                resultados_iniciais = len(fluxo.apurador.resultados)
+                print("Resultado simulado apurado:", fluxo.apurador.resultados[-1]["resultado"])
+            if modo_telegram:
+                # Neste modo, so encerrar apos sinal + vela seguinte apurada,
+                # ou pelo limite de 30 minutos. Pode nao surgir sinal.
+                if resultados_iniciais >= 1 and fechados >= 22:
+                    break
+            elif fechados >= 22 and ticks >= 10:
                 break
     print(f"Ticks: {ticks}; candles M1 fechados: {fechados}; leituras completas: {leituras}")
     print("Observacao: indicadores precisam de 22 velas fechadas para aquecimento.")
     if ticks < 10 or fechados < 22 or leituras < 1:
         raise RuntimeError("Teste inconclusivo: faltaram ticks, 22 velas ou leitura de indicadores")
+    if modo_telegram:
+        print(f"Resultados simulados apurados: {len(fluxo.apurador.resultados)}")
+        if not fluxo.apurador.resultados:
+            print("Sem ciclo completo de sinal e resultado nesta janela; nenhum resultado inventado.")
     print("Streaming integrado ao M1: OK; nenhuma operacao enviada")
 
 if __name__ == "__main__":
