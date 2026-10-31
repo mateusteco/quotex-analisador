@@ -1,0 +1,53 @@
+name: Envio controlado Telegram Nexus (simulação)
+on:
+  push:
+    branches: [desenvolvimento-streaming-m1]
+    paths:
+      - '.github/workflows/envio-controlado-telegram.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nexus-telegram-envio-controlado
+  cancel-in-progress: false
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Enviar exemplo controlado sem operação
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python - <<'PY'
+          import os
+          from alertas_simulacao import enviar_alerta, enviar_resultado, formatar_resultado
+          class Envio:
+              def __init__(self): self.n = 0
+              def post(self, url, json, timeout):
+                  import requests
+                  self.n += 1
+                  return requests.post(url, json=json, timeout=timeout)
+          assert os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"), "Secrets Telegram ausentes"
+          sessao = Envio()
+          leitura = {"inicio": 1793462400, "sinal_teorico": "PUT",
+                     "preco": 0.196690, "mm9": 0.197006,
+                     "mm21": 0.197070, "rsi14": 39.49}
+          enviar_alerta(leitura, sessao=sessao)
+          registro = {"mensagem": (
+              "🧪 TESTE DE ENTREGA — RESULTADO ILUSTRATIVO\n"
+              "👑 NEXUS OTC | QUOTEX M1\n"
+              "📍 PUT | SEM MARTINGALE\n"
+              "⚪ RESULTADO FICTÍCIO: EMPATE ➖\n"
+              "Este resultado foi inventado somente para testar a mensagem. "
+              "Não houve sinal ao vivo, operação ou apuração real."
+          )}
+          enviar_resultado(registro, sessao=sessao)
+          print(f"Telegram confirmou {sessao.n} mensagens de teste.")
+          PY
