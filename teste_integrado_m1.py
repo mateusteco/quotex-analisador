@@ -22,7 +22,7 @@ def main():
     ) as response:
         response.raise_for_status()
         for line in response.iter_lines(chunk_size=1, decode_unicode=True):
-            if time.monotonic() - inicio > 100:
+            if time.monotonic() - inicio > 1800:
                 break
             if not line or not line.startswith("data:"):
                 continue
@@ -41,12 +41,12 @@ def main():
                 if leitura is not None:
                     leituras += 1
                     print("Indicadores da vela fechada:", leitura)
-            if fechados >= 1 and ticks >= 10:
+            if fechados >= 22 and ticks >= 10:
                 break
     print(f"Ticks: {ticks}; candles M1 fechados: {fechados}; leituras completas: {leituras}")
     print("Observacao: indicadores precisam de 22 velas fechadas para aquecimento.")
-    if ticks < 10 or fechados < 1:
-        raise RuntimeError("Teste inconclusivo: faltaram ticks ou virada de minuto")
+    if ticks < 10 or fechados < 22 or leituras < 1:
+        raise RuntimeError("Teste inconclusivo: faltaram ticks, 22 velas ou leitura de indicadores")
     print("Streaming integrado ao M1: OK; nenhuma operacao enviada")
 
 if __name__ == "__main__":
