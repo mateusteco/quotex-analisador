@@ -1,0 +1,24 @@
+name: Testar fluxo M1 e alertas sem API
+on:
+  push:
+    branches: [desenvolvimento-streaming-m1]
+    paths:
+      - 'fluxo_alertas_m1.py'
+      - 'test_fluxo_alertas_m1.py'
+      - 'alertas_simulacao.py'
+      - 'test_alertas_simulacao.py'
+      - 'indicadores_m1.py'
+      - 'stream_m1.py'
+      - '.github/workflows/testar-fluxo-alertas-m1.yml'
+  workflow_dispatch:
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install requests
+      - run: python -m unittest -v test_alertas_simulacao test_fluxo_alertas_m1
