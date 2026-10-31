@@ -1,0 +1,23 @@
+name: Validar agregador M1
+on:
+  workflow_dispatch:
+  push:
+    branches: [desenvolvimento-streaming-m1]
+    paths:
+      - 'stream_m1.py'
+      - '.github/workflows/validar-m1.yml'
+permissions:
+  contents: read
+jobs:
+  validar-m1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verificar compilacao
+        run: python -m py_compile stream_m1.py
+      - name: Executar teste local sem ordens
+        run: python stream_m1.py
