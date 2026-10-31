@@ -8,6 +8,7 @@ on:
       - 'fluxo_alertas_m1.py'
       - 'alertas_simulacao.py'
       - 'test_apuracao_simulada_m1.py'
+      - 'test_telegram_resultado_m1.py'
       - '.github/workflows/validar-apuracao-m1.yml'
 permissions:
   contents: read
@@ -21,4 +22,4 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install requests
-      - run: python -m unittest -v test_apuracao_simulada_m1.py
+      - run: python -m unittest -v test_apuracao_simulada_m1.py test_telegram_resultado_m1.py
