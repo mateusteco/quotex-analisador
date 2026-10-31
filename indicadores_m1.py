@@ -4,8 +4,12 @@ from collections import deque
 class IndicadoresM1:
     def __init__(self):
         self.fechamentos = deque(maxlen=120)
+        self.ultimo_inicio = None
 
     def processar(self, candle):
+        if self.ultimo_inicio is not None and candle.inicio <= self.ultimo_inicio:
+            return None
+        self.ultimo_inicio = candle.inicio
         self.fechamentos.append(float(candle.close))
         p = list(self.fechamentos)
         if len(p) < 22:
