@@ -1,0 +1,24 @@
+name: Teste OTCharts Streaming
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testar-stream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar requests
+        run: python -m pip install requests
+      - name: Testar ticks sem negociar
+        env:
+          OTCHARTS_API_KEY: ${{ secrets.OTCHARTS_API_KEY }}
+        run: python teste_stream.py
