@@ -1,0 +1,21 @@
+name: Validar indicadores M1
+on:
+  workflow_dispatch:
+  push:
+    branches: [desenvolvimento-streaming-m1]
+    paths:
+      - indicadores_m1.py
+      - .github/workflows/validar-indicadores-m1.yml
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Testar indicadores
+        run: python indicadores_m1.py
