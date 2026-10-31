@@ -4,12 +4,11 @@ import os
 import time
 import requests
 from stream_m1 import M1Builder
-from indicadores_m1 import IndicadoresM1
+from fluxo_alertas_m1 import FluxoM1
 
 def main():
     key = os.environ["OTCHARTS_API_KEY"]
-    builder = M1Builder()
-    indicadores = IndicadoresM1()
+    fluxo = FluxoM1(enviar_telegram=os.getenv('ENVIAR_TELEGRAM_SIMULACAO') == '1')
     ticks = 0
     fechados = 0
     leituras = 0
@@ -32,15 +31,16 @@ def main():
             ts = data.get("time")
             if ts is None:
                 continue
-            candle = builder.adicionar(ts, data["price"])
+            antes = fluxo.builder.atual.inicio if fluxo.builder.atual else None
+            mensagem = fluxo.tick(ts, data["price"])
             ticks += 1
-            if candle:
+            depois = fluxo.builder.atual.inicio if fluxo.builder.atual else None
+            if antes is not None and depois is not None and depois > antes:
                 fechados += 1
-                print("M1 fechado:", candle)
-                leitura = indicadores.processar(candle)
-                if leitura is not None:
+                if fluxo.indicadores.ultimo_inicio == antes:
                     leituras += 1
-                    print("Indicadores da vela fechada:", leitura)
+            if mensagem:
+                print("Alerta teorico preparado:", mensagem)
             if fechados >= 22 and ticks >= 10:
                 break
     print(f"Ticks: {ticks}; candles M1 fechados: {fechados}; leituras completas: {leituras}")
