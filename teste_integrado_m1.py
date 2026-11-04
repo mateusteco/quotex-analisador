@@ -1,69 +1,84 @@
-"""Teste integrado de ticks OTCharts e agregacao M1, sem ordens."""
+"""Validação ao vivo OTCharts -> M1 -> Telegram opcional, sem ordens."""
 import json
 import os
 import time
 import requests
-from stream_m1 import M1Builder
 from fluxo_alertas_m1 import FluxoM1
+from otcharts_stream import SYMBOL, STREAM_URL, eventos_sse, normalizar_tick
+
+
+def executar(*, cliente=requests, duracao=1800, relogio=time.time, monotonic=time.monotonic, exigir_m1=True):
+    key = os.getenv("OTCHARTS_API_KEY")
+    if not key:
+        raise RuntimeError("OTCHARTS_API_KEY não configurada")
+    telegram = exigir_m1 and os.getenv('ENVIAR_TELEGRAM_SIMULACAO') == '1'
+    fluxo = FluxoM1(enviar_telegram=telegram, sessao=cliente, relogio=relogio)
+    inicio = monotonic()
+    fechados = leituras = invalidos = 0
+    conectado = False
+    try:
+        with cliente.get(
+            STREAM_URL,
+            headers={"Authorization": f"Bearer {key}", "Accept": "text/event-stream"},
+            params={"venue": "quotex", "symbol": SYMBOL},
+            stream=True, timeout=(10, 20)
+        ) as response:
+            response.raise_for_status()
+            for evento, dados in eventos_sse(response.iter_lines(chunk_size=1, decode_unicode=True)):
+                recebido = relogio()
+                if monotonic() - inicio > duracao:
+                    break
+                if evento in ('dropped', 'closed', 'replaced'):
+                    raise RuntimeError("Stream interrompido pela OTCharts; validação incompleta")
+                if evento == 'connected':
+                    conectado = True
+                    continue
+                if evento not in ('tick', 'message'):
+                    continue
+                try:
+                    tick = normalizar_tick(dados)
+                    if tick is None:
+                        continue
+                    antes = fluxo.builder.atual.inicio if fluxo.builder.atual else None
+                    mensagem = fluxo.tick(*tick, recebido_em=recebido)
+                except ValueError:
+                    invalidos += 1
+                    continue
+                depois = fluxo.builder.atual.inicio if fluxo.builder.atual else None
+                if antes is not None and depois > antes:
+                    fechados += 1
+                    if fluxo.ultima_leitura and fluxo.ultima_leitura['inicio'] == antes:
+                        leituras += 1
+                if mensagem:
+                    print(mensagem)
+                if telegram:
+                    if fluxo.apurador.resultados and fechados >= 22 and fluxo.apurador.pendente is None:
+                        break
+                elif (exigir_m1 and fechados >= 22 and leituras >= 1) or (not exigir_m1 and fluxo.metricas["ticks_aceitos"] >= 10):
+                    break
+    except requests.RequestException:
+        raise RuntimeError("Falha HTTP/stream OTCharts; detalhes sensíveis omitidos") from None
+    relatorio = dict(simbolo=SYMBOL, conectado=conectado, candles_fechados=fechados,
+                     leituras=leituras, ticks_invalidos=invalidos,
+                     resultados=len(fluxo.apurador.resultados),
+                     pendente=fluxo.apurador.pendente is not None, **fluxo.metricas)
+    print(json.dumps(relatorio, ensure_ascii=False))
+    if fluxo.metricas["ticks_aceitos"] < 10 or (exigir_m1 and (fechados < 22 or leituras < 1)):
+        raise RuntimeError("Teste inconclusivo: faltaram 22 velas contíguas recentes e leitura de indicadores")
+    if telegram and (not fluxo.apurador.resultados or fluxo.metricas['telegram_confirmados'] < 2
+                     or fluxo.metricas['telegram_falhas']):
+        raise RuntimeError("Telegram inconclusivo: ciclo de sinal e resultado não confirmado sem falhas")
+    print("Streaming validado nesta janela; nenhuma operação enviada.")
+    return relatorio
+
 
 def main():
-    key = os.environ["OTCHARTS_API_KEY"]
-    fluxo = FluxoM1(enviar_telegram=os.getenv('ENVIAR_TELEGRAM_SIMULACAO') == '1')
-    ticks = 0
-    fechados = 0
-    leituras = 0
-    inicio = time.monotonic()
-    modo_telegram = os.getenv('ENVIAR_TELEGRAM_SIMULACAO') == '1'
-    resultados_iniciais = 0
-    with requests.get(
-        "https://otcharts.com/v1/stream",
-        headers={"Authorization": f"Bearer {key}", "Accept": "text/event-stream"},
-        params={"venue": "quotex", "symbol": "AUDUSD_otc"},
-        stream=True, timeout=(10, 20)
-    ) as response:
-        response.raise_for_status()
-        for line in response.iter_lines(chunk_size=1, decode_unicode=True):
-            if time.monotonic() - inicio > 1800:
-                break
-            if not line or not line.startswith("data:"):
-                continue
-            data = json.loads(line[5:].strip())
-            if data.get("symbol") != "AUDUSD_otc" or "price" not in data:
-                continue
-            ts = data.get("time")
-            if ts is None:
-                continue
-            antes = fluxo.builder.atual.inicio if fluxo.builder.atual else None
-            mensagem = fluxo.tick(ts, data["price"])
-            ticks += 1
-            depois = fluxo.builder.atual.inicio if fluxo.builder.atual else None
-            if antes is not None and depois is not None and depois > antes:
-                fechados += 1
-                if fluxo.indicadores.ultimo_inicio == antes:
-                    leituras += 1
-            if mensagem:
-                print("Alerta teorico preparado:", mensagem)
-            if len(fluxo.apurador.resultados) > resultados_iniciais:
-                resultados_iniciais = len(fluxo.apurador.resultados)
-                print("Resultado simulado apurado:", fluxo.apurador.resultados[-1]["resultado"])
-            if modo_telegram:
-                # Neste modo, so encerrar apos sinal + vela seguinte apurada,
-                # ou pelo limite de 30 minutos. Pode nao surgir sinal.
-                if resultados_iniciais >= 1 and fechados >= 22 and fluxo.apurador.pendente is None:
-                    break
-            elif fechados >= 22 and ticks >= 10:
-                break
-    if fluxo.apurador.pendente is not None:
-        print("ATENCAO: sinal pendente sem vela posterior completa; resultado nao apurado.")
-    print(f"Ticks: {ticks}; candles M1 fechados: {fechados}; leituras completas: {leituras}")
-    print("Observacao: indicadores precisam de 22 velas fechadas para aquecimento.")
-    if ticks < 10 or fechados < 22 or leituras < 1:
-        raise RuntimeError("Teste inconclusivo: faltaram ticks, 22 velas ou leitura de indicadores")
-    if modo_telegram:
-        print(f"Resultados simulados apurados: {len(fluxo.apurador.resultados)}")
-        if not fluxo.apurador.resultados:
-            print("Sem ciclo completo de sinal e resultado nesta janela; nenhum resultado inventado.")
-    print("Streaming integrado ao M1: OK; nenhuma operacao enviada")
+    try:
+        executar()
+    except (RuntimeError, ValueError) as erro:
+        print(str(erro))
+        raise SystemExit(1) from None
+
 
 if __name__ == "__main__":
     main()

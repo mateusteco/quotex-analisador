@@ -29,7 +29,7 @@ class TesteTelegramResultado(unittest.TestCase):
         fluxo = FluxoM1(enviar_telegram=False, sessao=sessao)
         fluxo.apurador.registrar_sinal({"inicio": 60, "sinal_teorico": "CALL"})
         fluxo.builder.atual = Candle(120, 1.0, 1.1, 1.0, 1.1)
-        fluxo.tick(180, 1.2)
+        fluxo.tick(180, 1.2, recebido_em=180)
         self.assertEqual(len(fluxo.apurador.resultados), 1)
         self.assertEqual(sessao.envios, [])
 
@@ -39,7 +39,7 @@ class TesteTelegramResultado(unittest.TestCase):
         fluxo.apurador.registrar_sinal({"inicio": 60, "sinal_teorico": "CALL"})
         fluxo.builder.atual = Candle(120, 1.0, 1.1, 1.0, 1.1)
         with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "token-teste", "TELEGRAM_CHAT_ID": "chat-teste"}):
-            fluxo.tick(180, 1.2)
+            fluxo.tick(180, 1.2, recebido_em=180)
         self.assertEqual(len(sessao.envios), 1)
         self.assertIn("WIN", sessao.envios[0][1]["text"])
 

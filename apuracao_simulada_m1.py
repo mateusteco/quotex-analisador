@@ -1,8 +1,10 @@
 """Apuração de uma única vela M1 posterior ao sinal, apenas em simulação."""
 from alertas_simulacao import formatar_resultado
+from otcharts_stream import SYMBOL
 
 class ApuradorM1:
-    def __init__(self):
+    def __init__(self, simbolo=SYMBOL):
+        self.simbolo = simbolo
         self.pendente = None
         self.resultados = []
 
@@ -30,7 +32,8 @@ class ApuradorM1:
         )
         registro = {"inicio": candle.inicio, "direcao": direcao,
                     "entrada": entrada, "saida": saida, "resultado": resultado,
-                    "mensagem": formatar_resultado(direcao, entrada, saida)}
+                    "simbolo": self.simbolo,
+                    "mensagem": formatar_resultado(direcao, entrada, saida, simbolo=self.simbolo, inicio=candle.inicio)}
         self.resultados.append(registro)
         self.pendente = None
         return registro

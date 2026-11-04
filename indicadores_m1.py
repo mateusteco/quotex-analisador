@@ -9,6 +9,8 @@ class IndicadoresM1:
     def processar(self, candle):
         if self.ultimo_inicio is not None and candle.inicio <= self.ultimo_inicio:
             return None
+        if self.ultimo_inicio is not None and candle.inicio != self.ultimo_inicio + 60:
+            self.fechamentos.clear()
         self.ultimo_inicio = candle.inicio
         self.fechamentos.append(float(candle.close))
         p = list(self.fechamentos)

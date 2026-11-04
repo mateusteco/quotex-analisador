@@ -15,14 +15,18 @@ class Candle:
 class M1Builder:
     def __init__(self):
         self.atual = None
+        self.ultimo_timestamp = None
 
     def adicionar(self, timestamp, preco):
         """Retorna candle fechado ao mudar de minuto, ou None."""
-        ts = int(timestamp)
+        ts = float(timestamp)
         price = float(preco)
-        if not isfinite(price) or price <= 0:
+        if not isfinite(ts) or ts < 0 or not isfinite(price) or price <= 0:
             raise ValueError("Preco invalido")
-        minuto = (ts // 60) * 60
+        if self.ultimo_timestamp is not None and ts < self.ultimo_timestamp:
+            return None
+        self.ultimo_timestamp = ts
+        minuto = int(ts // 60) * 60
         if self.atual is None:
             self.atual = Candle(minuto, price, price, price, price)
             return None

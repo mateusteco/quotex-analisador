@@ -1,0 +1,23 @@
+name: Regressão completa streaming M1 (offline)
+on:
+  push:
+    branches: [desenvolvimento-streaming-m1]
+    paths: ['*.py', '.github/workflows/regressao-streaming-m1.yml']
+  pull_request:
+    paths: ['*.py', '.github/workflows/regressao-streaming-m1.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install requests
+      - run: python -m unittest discover -v
+      - run: python stream_m1.py && python indicadores_m1.py
+      - run: python -m compileall -q .
