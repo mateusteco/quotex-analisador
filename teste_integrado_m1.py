@@ -18,7 +18,7 @@ def main():
     with requests.get(
         "https://otcharts.com/v1/stream",
         headers={"Authorization": f"Bearer {key}", "Accept": "text/event-stream"},
-        params={"venue": "quotex", "symbol": "BRLUSD_otc"},
+        params={"venue": "quotex", "symbol": "AUDUSD_otc"},
         stream=True, timeout=(10, 20)
     ) as response:
         response.raise_for_status()
@@ -28,7 +28,7 @@ def main():
             if not line or not line.startswith("data:"):
                 continue
             data = json.loads(line[5:].strip())
-            if data.get("symbol") != "BRLUSD_otc" or "price" not in data:
+            if data.get("symbol") != "AUDUSD_otc" or "price" not in data:
                 continue
             ts = data.get("time")
             if ts is None:
