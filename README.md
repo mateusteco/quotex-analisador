@@ -33,3 +33,9 @@ O resumo JSON registra ticks aceitos/rejeitados, latência do último tick, maio
 Sem sinal dentro da janela, indisponibilidade do provedor ou dados insuficientes deixam a validação inconclusiva; nenhum resultado é inventado. O estado é mantido em memória, sem recuperação após reinício ou garantia de entrega exatamente uma vez. Os monitores e páginas de pesquisa históricos mantêm seus próprios ativos e não são executores M1.
 
 Não mesclar com `main` sem revisão.
+
+## Comparação com gravação da Quotex
+
+No workflow **Teste OTCharts Streaming**, marque `capturar` e escolha entre 10 e 600 segundos. Espere a etapa de captura indicar `CAPTURA INICIADA` antes de gravar o gráfico NZD/CAD OTC. O arquivo CSV fica nos artefatos da execução por três dias; contém preço, timestamp do provedor, recepção UTC e atraso por tick. Esse workflow somente lê cotações e não envia mensagens ou ordens. Localmente: `CAPTURA_SEGUNDOS=120 python -u capturar_ticks.py` com a chave no ambiente.
+
+Confirme o fuso/data do relógio do gráfico e mantenha nome do ativo, preço e relógio visíveis no vídeo. Sem sobreposição temporal, a comparação é inconclusiva. A amostra permite verificar correspondência nos pontos observados, sem comprovar igualdade contínua ou precisão subsegundo do relógio visual. Valores com atraso negativo ou alto permanecem no arquivo como evidência da captura; não são sinais. Capturas interrompidas podem deixar CSV parcial, identificado pela falha da etapa.

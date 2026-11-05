@@ -218,3 +218,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Cotações coletadas ficam em artefatos temporários, fora do Git.
+capturas/

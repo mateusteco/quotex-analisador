@@ -1,6 +1,15 @@
 name: Teste OTCharts Streaming
 on:
   workflow_dispatch:
+    inputs:
+      capturar:
+        description: Gravar ticks em CSV para comparação com vídeo
+        type: boolean
+        default: false
+      segundos:
+        description: Duração da captura (10 a 600 segundos)
+        type: string
+        default: '120'
 
 permissions:
   contents: read
@@ -8,7 +17,7 @@ permissions:
 jobs:
   testar-stream:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 13
     steps:
       - name: Baixar codigo
         uses: actions/checkout@v4
@@ -22,3 +31,16 @@ jobs:
         env:
           OTCHARTS_API_KEY: ${{ secrets.OTCHARTS_API_KEY }}
         run: python teste_stream.py
+      - name: Capturar preços e horários sem operar
+        if: inputs.capturar
+        env:
+          OTCHARTS_API_KEY: ${{ secrets.OTCHARTS_API_KEY }}
+          CAPTURA_SEGUNDOS: ${{ inputs.segundos }}
+        run: python -u capturar_ticks.py
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.capturar
+        with:
+          name: cotacoes-nzdcad-${{ github.run_id }}
+          path: capturas/*.csv
+          retention-days: 3
+          if-no-files-found: warn
