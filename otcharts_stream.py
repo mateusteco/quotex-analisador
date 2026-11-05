@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from math import isfinite
 
-SYMBOL = "AUDUSD_otc"
+SYMBOL = "NZDCAD_otc"
 STREAM_URL = "https://otcharts.com/v1/stream"
 
 

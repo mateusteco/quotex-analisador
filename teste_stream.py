@@ -1,4 +1,4 @@
-"""Sondagem AUDUSD OTC, com o mesmo contrato do fluxo integrado."""
+"""Sondagem NZDCAD OTC, com o mesmo contrato do fluxo integrado."""
 from teste_integrado_m1 import executar
 
 if __name__ == '__main__':

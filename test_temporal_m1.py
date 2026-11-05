@@ -58,7 +58,8 @@ class TestTemporal(unittest.TestCase):
     def test_horarios_latencia_e_texto_retrospectivo(self):
         f = self.fluxo()
         m = f.tick(BASE + 60.25, 1.1, recebido_em=BASE + 61)
-        self.assertIn('AUDUSD_otc', m)
+        self.assertIn('NZDCAD_otc', m)
+        self.assertNotIn('AUDUSD_otc', m)
         self.assertIn('2026-11-04 21:01:00.000 UTC-03:00', m)
         self.assertIn('Não é entrada futura', m)
         self.assertNotIn('Entrada única', m)

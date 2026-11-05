@@ -2,7 +2,7 @@
 
 Pesquisa e simulação de sinais, sem execução de ordens reais e sem martingale.
 
-O fluxo streaming M1 usa `AUDUSD_otc` na OTCharts (venue `quotex`). Os horários são derivados dos ticks do provedor e apresentados com data e fuso de Brasília. São aceitos timestamps Unix em segundos/milissegundos ou ISO com fuso. Ticks com mais de 5 segundos de atraso, timestamps futuros e ticks fora de ordem são descartados. Esse limite conservador depende de relógios sincronizados; a latência mede a diferença entre o timestamp do provedor e a recepção local, não apenas a rede.
+O fluxo streaming M1 usa `NZDCAD_otc` na OTCharts (venue `quotex`). Os horários são derivados dos ticks do provedor e apresentados com data e fuso de Brasília. São aceitos timestamps Unix em segundos/milissegundos ou ISO com fuso. Ticks com mais de 5 segundos de atraso, timestamps futuros e ticks fora de ordem são descartados. Esse limite conservador depende de relógios sincronizados; a latência mede a diferença entre o timestamp do provedor e a recepção local, não apenas a rede.
 
 Cada alerta descreve uma vela já fechada: **é retrospectivo e nunca uma entrada futura**. Uma leitura demora 22 velas contíguas para aquecer. Lacunas reiniciam os indicadores e impedem sinais da vela anterior à lacuna. O resultado é a comparação open/close dos ticks observados na vela seguinte; não representa execução, payout, rentabilidade ou preço disponível após a entrega do Telegram.
 
@@ -22,7 +22,7 @@ A regressão automática não recebe secrets e não envia mensagens externas. In
 
 Execute na ramificação `desenvolvimento-streaming-m1` pelo GitHub Actions:
 
-- **Teste OTCharts Streaming**: sondagem curta, requer ao menos dez ticks recentes de AUDUSD OTC.
+- **Teste OTCharts Streaming**: sondagem curta, requer ao menos dez ticks recentes de NZD/CAD OTC.
 - **Teste integrado streaming M1**: até 30 minutos; exige 22 velas e leitura de indicadores.
 - **Teste ponta a ponta OTCharts Telegram M1**: mesma janela, com envio de sinais e resultados exclusivamente simulados. A validação exige um ciclo apurado e confirmação de ao menos duas mensagens, sem falhas.
 
