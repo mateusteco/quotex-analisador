@@ -1,0 +1,6 @@
+.git
+.env
+.streamlit/secrets.toml
+runtime
+__pycache__
+tests
